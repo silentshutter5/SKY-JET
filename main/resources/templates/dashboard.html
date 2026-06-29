@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title th:text="${airportCode} + ' — Airport Operations Dashboard'">KORD Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0f1e; color: #e2e8f0; font-family: 'Inter', system-ui, sans-serif; font-size: 14px; }
+    .mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+    header { background: rgba(15,22,41,0.95); border-bottom: 1px solid rgba(56,189,248,0.15);
+             padding: 0.75rem 1.5rem; display: flex; justify-content: space-between; align-items: center;
+             position: sticky; top: 0; z-index: 100; }
+    .logo { display: flex; align-items: center; gap: 0.75rem; }
+    .logo-icon { width: 36px; height: 36px; background: rgba(56,189,248,0.12);
+                 border: 1px solid rgba(56,189,248,0.3); border-radius: 6px;
+                 display: flex; align-items: center; justify-content: center; font-size: 18px; }
+    .airport-name { color: #e2e8f0; }
+    .airport-sub { font-size: 0.75rem; color: #64748b; }
+    #clock { color: #38bdf8; font-size: 1.1rem; text-align: right; }
+    #date-display { color: #64748b; font-size: 0.75rem; text-align: right; }
+    main { padding: 1.5rem; max-width: 1600px; margin: 0 auto; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+    .kpi-card { background: #0f1629; border: 1px solid rgba(56,189,248,0.12); border-radius: 6px; padding: 1rem; }
+    .kpi-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; margin-bottom: 0.5rem; }
+    .kpi-value { font-size: 1.6rem; color: #e2e8f0; }
+    .kpi-delta { font-size: 0.7rem; color: #34d399; margin-top: 0.25rem; }
+    .kpi-delta.down { color: #f87171; }
+    .panel { background: #0f1629; border: 1px solid rgba(56,189,248,0.12); border-radius: 6px; margin-bottom: 1rem; overflow: hidden; }
+    .panel-header { padding: 0.75rem 1.25rem; border-bottom: 1px solid rgba(56,189,248,0.08); color: #e2e8f0; }
+    table { width: 100%; border-collapse: collapse; }
+    th { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b;
+         padding: 0.5rem 1rem; text-align: left; border-bottom: 1px solid rgba(56,189,248,0.08); }
+    td { padding: 0.625rem 1rem; border-bottom: 1px solid rgba(56,189,248,0.05); }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; border: 1px solid; }
+    .badge-on-time   { color: #34d399; background: rgba(52,211,153,0.1); border-color: rgba(52,211,153,0.3); }
+    .badge-delayed   { color: #fbbf24; background: rgba(251,191,36,0.1); border-color: rgba(251,191,36,0.3); }
+    .badge-boarding  { color: #38bdf8; background: rgba(56,189,248,0.1); border-color: rgba(56,189,248,0.3); }
+    .badge-cancelled { color: #f87171; background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.3); }
+    .badge-landed    { color: #94a3b8; background: rgba(148,163,184,0.1); border-color: rgba(148,163,184,0.3); }
+    .badge-in-flight { color: #a78bfa; background: rgba(167,139,250,0.1); border-color: rgba(167,139,250,0.3); }
+    .badge-critical  { color: #f87171; background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.3); }
+    .badge-high      { color: #fb923c; background: rgba(251,146,60,0.1);  border-color: rgba(251,146,60,0.3); }
+    .badge-medium    { color: #fbbf24; background: rgba(251,191,36,0.1);  border-color: rgba(251,191,36,0.3); }
+    .text-sky   { color: #38bdf8; }
+    .text-muted { color: #64748b; }
+    .alert-row.critical td:first-child { border-left: 3px solid #f87171; }
+    .alert-row.high     td:first-child { border-left: 3px solid #fb923c; }
+    .alert-row.medium   td:first-child { border-left: 3px solid #fbbf24; }
+    footer { background: rgba(8,13,26,0.95); border-top: 1px solid rgba(56,189,248,0.1);
+             padding: 0.375rem 1.5rem; display: flex; justify-content: space-between;
+             font-size: 0.7rem; color: #64748b; position: fixed; bottom: 0; left: 0; right: 0; }
+  </style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <div class="logo-icon">✈</div>
+    <div>
+      <div class="airport-name mono" th:text="${airportCode} + ' — ' + ${airportName}">KORD — O'Hare</div>
+      <div class="airport-sub">Airport Operations Control Center</div>
+    </div>
+  </div>
+  <div>
+    <div class="mono" id="clock">--:--:--</div>
+    <div class="mono" id="date-display">Loading...</div>
+  </div>
+</header>
+<main>
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label mono">Total Flights Today</div>
+      <div class="kpi-value mono" th:text="${stats.totalFlightsToday}">284</div>
+      <div class="kpi-delta mono">+12 vs yesterday</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label mono">On-Time Performance</div>
+      <div class="kpi-value mono" th:text="${#numbers.formatDecimal(stats.onTimePerformance, 1, 1)} + '%'">87.4%</div>
+      <div class="kpi-delta mono">+2.1% vs yesterday</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label mono">Active Delays</div>
+      <div class="kpi-value mono" th:text="${stats.activeDelays}">23</div>
+      <div class="kpi-delta down mono">+5 vs yesterday</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label mono">Passengers Today</div>
+      <div class="kpi-value mono" th:text="${#numbers.formatInteger(stats.passengersToday, 1, 'COMMA')}">41,820</div>
+      <div class="kpi-delta mono">+3,200 vs yesterday</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label mono">Critical Alerts</div>
+      <div class="kpi-value mono" th:text="${stats.criticalAlerts}">1</div>
+      <div class="kpi-delta down mono" th:text="${stats.pendingAlerts} + ' pending'">4 pending</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label mono">ATC Comm Quality</div>
+      <div class="kpi-value mono" th:text="${stats.atcCommQuality} + '%'">98.7%</div>
+      <div class="kpi-delta mono">Stable</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">Live Flight Board</div>
+    <table>
+      <thead>
+        <tr>
+          <th class="mono">Flight</th><th class="mono">Route</th><th class="mono">Status</th>
+          <th class="mono">Gate</th><th class="mono">Departure</th><th class="mono">Arrival</th><th class="mono">Aircraft</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr th:each="flight : ${flights}">
+          <td class="text-sky mono" th:text="${flight.flightId}">AA-2341</td>
+          <td class="mono" th:text="${flight.origin} + ' → ' + ${flight.destination}">JFK → LAX</td>
+          <td>
+            <span class="badge mono"
+              th:classappend="${flight.status.name() == 'ON_TIME' ? 'badge-on-time' :
+                               flight.status.name() == 'DELAYED'  ? 'badge-delayed' :
+                               flight.status.name() == 'BOARDING' ? 'badge-boarding' :
+                               flight.status.name() == 'CANCELLED'? 'badge-cancelled' :
+                               flight.status.name() == 'LANDED'   ? 'badge-landed' : 'badge-in-flight'}"
+              th:text="${flight.status.displayName}">On Time</span>
+          </td>
+          <td class="mono" th:text="${flight.gate}">A12</td>
+          <td class="mono" th:text="${flight.scheduledDeparture}">14:30</td>
+          <td class="mono text-muted" th:text="${flight.scheduledArrival}">18:45</td>
+          <td class="mono text-muted" th:text="${flight.aircraftType}">B737-800</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">Active Alerts &amp; Incidents</div>
+    <table>
+      <thead>
+        <tr>
+          <th class="mono">Alert ID</th><th class="mono">Severity</th><th class="mono">Category</th>
+          <th class="mono">Title</th><th class="mono">Location</th><th class="mono">Assignee</th><th class="mono">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr th:each="alert : ${alerts}" class="alert-row"
+            th:classappend="${alert.severity.name() == 'CRITICAL' ? 'critical' :
+                             alert.severity.name() == 'HIGH' ? 'high' : 'medium'}">
+          <td class="text-sky mono" th:text="${alert.alertId}">ALT-0041</td>
+          <td>
+            <span class="badge mono"
+              th:classappend="${alert.severity.name() == 'CRITICAL' ? 'badge-critical' :
+                               alert.severity.name() == 'HIGH' ? 'badge-high' : 'badge-medium'}"
+              th:text="${alert.severity}">CRITICAL</span>
+          </td>
+          <td class="text-sky mono" th:text="${alert.category}">SECURITY</td>
+          <td th:text="${alert.title}">Unattended bag</td>
+          <td class="text-muted mono" th:text="${alert.location}">Concourse B</td>
+          <td class="text-muted mono" th:text="${alert.assignee != null ? alert.assignee : '—'}">Officer Diaz</td>
+          <td>
+            <span class="badge mono badge-on-time" th:if="${alert.acknowledged}">ACK</span>
+            <span class="badge mono badge-delayed" th:unless="${alert.acknowledged}">PENDING</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+<footer>
+  <div class="mono"><span style="color:#34d399">● Systems Nominal</span> &nbsp;·&nbsp; 284 flights today · 41,820 passengers</div>
+  <div class="mono">ATIS: Info KILO &nbsp;·&nbsp; Active runway: 28L / 10R &nbsp;·&nbsp; v1.0.0 · AOCC</div>
+</footer>
+<script>
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent = now.toLocaleTimeString('en-US', { hour12: false });
+    document.getElementById('date-display').textContent =
+      now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ' · Local';
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+</script>
+</body>
+</html>
